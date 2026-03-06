@@ -1,11 +1,12 @@
 import re
 from collections import defaultdict
 
+import os
+
 import requests
-import yfinance as yf
 from flask import Flask, render_template, jsonify, request
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates"))
 
 CBOE_URL = "https://cdn.cboe.com/api/global/delayed_quotes/options/{symbol}.json"
 CBOE_HEADERS = {"User-Agent": "Mozilla/5.0"}
