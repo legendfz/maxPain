@@ -41,35 +41,51 @@ def fetch_cboe_options(symbol):
             "type": p["type"],
             "strike": p["strike"],
             "oi": o.get("open_interest") or 0,
+            "volume": o.get("volume") or 0,
         })
 
     return current_price, dict(by_exp)
 
 
+def _calc_pain(strikes, call_w, put_w):
+    """Compute pain curve given strike->weight mappings. Returns (pain_list, max_pain_strike)."""
+    pain = []
+    for price in strikes:
+        cp = sum(max(price - s, 0) * call_w[s] for s in strikes)
+        pp = sum(max(s - price, 0) * put_w[s] for s in strikes)
+        pain.append(cp + pp)
+    min_idx = pain.index(min(pain))
+    return pain, strikes[min_idx]
+
+
 def calc_max_pain(options_for_exp):
-    """Calculate max pain from a list of option entries for one expiration."""
-    # Build strike -> OI mapping
+    """Calculate OI-based and Volume-based max pain."""
     call_oi = defaultdict(float)
     put_oi = defaultdict(float)
+    call_vol = defaultdict(float)
+    put_vol = defaultdict(float)
     for o in options_for_exp:
         if o["type"] == "C":
             call_oi[o["strike"]] += o["oi"]
+            call_vol[o["strike"]] += o["volume"]
         else:
             put_oi[o["strike"]] += o["oi"]
+            put_vol[o["strike"]] += o["volume"]
 
-    strikes = sorted(set(call_oi.keys()) | set(put_oi.keys()))
+    strikes = sorted(set(call_oi.keys()) | set(put_oi.keys()) | set(call_vol.keys()) | set(put_vol.keys()))
 
-    pain = []
-    for price in strikes:
-        cp = sum(max(price - s, 0) * call_oi[s] for s in strikes)
-        pp = sum(max(s - price, 0) * put_oi[s] for s in strikes)
-        pain.append(cp + pp)
+    pain_oi, mp_oi = _calc_pain(strikes, call_oi, put_oi)
+    pain_vol, mp_vol = _calc_pain(strikes, call_vol, put_vol)
 
-    min_idx = pain.index(min(pain))
+    total_vol = sum(call_vol.values()) + sum(put_vol.values())
+
     return {
         "strikes": strikes,
-        "pain": pain,
-        "max_pain": strikes[min_idx],
+        "pain": pain_oi,
+        "max_pain": mp_oi,
+        "pain_vol": pain_vol,
+        "max_pain_vol": mp_vol,
+        "total_volume": total_vol,
     }
 
 

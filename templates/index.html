@@ -191,11 +191,15 @@
       <div class="value green" id="infoPrice">-</div>
     </div>
     <div class="card">
-      <div class="label">Max Pain</div>
+      <div class="label">Max Pain (OI)</div>
       <div class="value orange" id="infoMaxPain">-</div>
     </div>
     <div class="card">
-      <div class="label">Difference</div>
+      <div class="label">Max Pain (Volume)</div>
+      <div class="value" id="infoMaxPainVol" style="color:#a371f7">-</div>
+    </div>
+    <div class="card">
+      <div class="label">Difference (OI)</div>
       <div class="value" id="infoDiff">-</div>
     </div>
     <div class="card">
@@ -373,6 +377,15 @@ function renderResult(data) {
   document.getElementById('infoMaxPain').textContent = `$${data.max_pain.toFixed(2)}`;
   document.getElementById('infoExp').textContent = data.expiration;
 
+  // Volume max pain
+  const mpVolEl = document.getElementById('infoMaxPainVol');
+  if (data.total_volume > 0) {
+    mpVolEl.textContent = `$${data.max_pain_vol.toFixed(2)}`;
+  } else {
+    mpVolEl.textContent = 'N/A';
+    mpVolEl.style.color = '#6e7681';
+  }
+
   if (data.price) {
     const diff = data.price - data.max_pain;
     const pct = (diff / data.max_pain * 100).toFixed(2);
@@ -383,44 +396,68 @@ function renderResult(data) {
   }
 
   const mp = data.max_pain;
-  const filtered = data.strikes.map((s, i) => ({ strike: s, pain: data.pain[i] }));
+  const mpVol = data.max_pain_vol;
+  const hasVol = data.total_volume > 0;
+  const filtered = data.strikes.map((s, i) => ({
+    strike: s, pain: data.pain[i], painVol: data.pain_vol ? data.pain_vol[i] : 0
+  }));
 
   // Compute min gap between strikes for tick step sizing
   const gaps = [];
   for (let i = 1; i < filtered.length; i++) {
     gaps.push(filtered[i].strike - filtered[i - 1].strike);
   }
-  const minGap = gaps.length ? Math.min(...gaps) : 2.5;
 
   // Use {x, y} data points with linear x-axis for proportional spacing
-  const chartData = filtered.map(d => ({ x: d.strike, y: d.pain }));
-  const colors = filtered.map(d =>
+  const chartDataOI = filtered.map(d => ({ x: d.strike, y: d.pain }));
+  const colorsOI = filtered.map(d =>
     Math.abs(d.strike - mp) < 0.01 ? '#d29922' : '#30363d'
   );
+
+  const datasets = [{
+    label: 'OI Pain ($)',
+    data: chartDataOI,
+    backgroundColor: colorsOI,
+    borderColor: colorsOI.map(c => c === '#d29922' ? '#d29922' : '#484f58'),
+    borderWidth: 1,
+    maxBarThickness: 6,
+    minBarLength: 2,
+    yAxisID: 'y',
+  }];
+
+  // Add volume pain as a line overlay if there's volume data
+  if (hasVol) {
+    const chartDataVol = filtered.map(d => ({ x: d.strike, y: d.painVol }));
+    datasets.push({
+      label: 'Volume Pain ($)',
+      data: chartDataVol,
+      type: 'line',
+      borderColor: '#a371f7',
+      backgroundColor: 'rgba(163,113,247,0.1)',
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.3,
+      fill: false,
+      yAxisID: 'y2',
+    });
+  }
 
   if (chart) chart.destroy();
   chart = new Chart(document.getElementById('painChart'), {
     type: 'bar',
-    data: {
-      datasets: [{
-        label: 'Total Pain ($)',
-        data: chartData,
-        backgroundColor: colors,
-        borderColor: colors.map(c => c === '#d29922' ? '#d29922' : '#484f58'),
-        borderWidth: 1,
-        maxBarThickness: 6,
-        minBarLength: 2,
-      }]
-    },
+    data: { datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
+        legend: {
+          display: hasVol,
+          labels: { color: '#8b949e', usePointStyle: true, pointStyle: 'line' },
+        },
         tooltip: {
           callbacks: {
             title: ctxs => `Strike: $${ctxs[0].parsed.x.toFixed(2)}`,
-            label: ctx => `Pain: $${ctx.parsed.y.toLocaleString()}`
+            label: ctx => `${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString()}`
           }
         },
       },
@@ -443,56 +480,58 @@ function renderResult(data) {
           offset: true,
         },
         y: {
-          title: { display: true, text: 'Total Pain ($)', color: '#8b949e' },
+          position: 'left',
+          title: { display: true, text: 'OI Pain ($)', color: '#d29922' },
           ticks: {
             color: '#8b949e',
             callback: v => v >= 1e9 ? (v/1e9).toFixed(1) + 'B' : v >= 1e6 ? (v/1e6).toFixed(1) + 'M' : v >= 1e3 ? (v/1e3).toFixed(0) + 'K' : v
           },
           grid: { color: '#21262d' },
+        },
+        y2: {
+          position: 'right',
+          display: hasVol,
+          title: { display: true, text: 'Volume Pain ($)', color: '#a371f7' },
+          ticks: {
+            color: '#8b949e',
+            callback: v => v >= 1e9 ? (v/1e9).toFixed(1) + 'B' : v >= 1e6 ? (v/1e6).toFixed(1) + 'M' : v >= 1e3 ? (v/1e3).toFixed(0) + 'K' : v
+          },
+          grid: { drawOnChartArea: false },
         }
       }
     },
     plugins: [{
-      // Draw vertical lines for max pain and current price
       afterDraw(chart) {
         const ctx = chart.ctx;
         const xScale = chart.scales.x;
         const yScale = chart.scales.y;
 
-        // Max pain line
-        const mpX = xScale.getPixelForValue(data.max_pain);
-        ctx.save();
-        ctx.strokeStyle = '#d29922';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
-        ctx.beginPath();
-        ctx.moveTo(mpX, yScale.top);
-        ctx.lineTo(mpX, yScale.bottom);
-        ctx.stroke();
-        ctx.fillStyle = '#d29922';
-        ctx.font = 'bold 12px sans-serif';
-        ctx.fillText(`Max Pain: $${data.max_pain.toFixed(2)}`, mpX + 6, yScale.top + 16);
-        ctx.restore();
-
-        // Current price line
-        if (data.price) {
-          const priceX = xScale.getPixelForValue(data.price);
+        function drawLine(xVal, color, label, labelY) {
+          const x = xScale.getPixelForValue(xVal);
           ctx.save();
-          ctx.strokeStyle = '#3fb950';
+          ctx.strokeStyle = color;
           ctx.lineWidth = 2;
           ctx.setLineDash([6, 4]);
           ctx.beginPath();
-          ctx.moveTo(priceX, yScale.top);
-          ctx.lineTo(priceX, yScale.bottom);
+          ctx.moveTo(x, yScale.top);
+          ctx.lineTo(x, yScale.bottom);
           ctx.stroke();
-          ctx.fillStyle = '#3fb950';
-          ctx.font = 'bold 12px sans-serif';
-          // Place label on left side if price line is close to max pain line to avoid overlap
-          const labelText = `Price: $${data.price.toFixed(2)}`;
-          const textW = ctx.measureText(labelText).width;
-          const labelX = Math.abs(priceX - mpX) < 80 ? priceX - textW - 6 : priceX + 6;
-          ctx.fillText(labelText, labelX, yScale.top + 32);
+          ctx.fillStyle = color;
+          ctx.font = 'bold 11px sans-serif';
+          const textW = ctx.measureText(label).width;
+          // Keep label within chart area
+          const chartRight = xScale.right;
+          const labelX = (x + textW + 8 > chartRight) ? x - textW - 6 : x + 6;
+          ctx.fillText(label, labelX, labelY);
           ctx.restore();
+        }
+
+        drawLine(data.max_pain, '#d29922', `OI MP: $${data.max_pain.toFixed(2)}`, yScale.top + 14);
+        if (hasVol) {
+          drawLine(data.max_pain_vol, '#a371f7', `Vol MP: $${data.max_pain_vol.toFixed(2)}`, yScale.top + 28);
+        }
+        if (data.price) {
+          drawLine(data.price, '#3fb950', `Price: $${data.price.toFixed(2)}`, yScale.top + (hasVol ? 42 : 28));
         }
       }
     }]
