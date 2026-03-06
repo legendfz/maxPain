@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option Max Pain</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f1117;
+    color: #e0e0e0;
+    min-height: 100vh;
+  }
+  .header {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #f0f6fc;
+    white-space: nowrap;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  input, select, button {
+    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #30363d;
+    background: #0d1117;
+    color: #e0e0e0;
+    outline: none;
+  }
+  input:focus, select:focus { border-color: #58a6ff; }
+  input { width: 120px; text-transform: uppercase; }
+  select { min-width: 150px; }
+  button {
+    background: #238636;
+    border-color: #238636;
+    color: #fff;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  button:hover { background: #2ea043; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+  .info-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .card .label { font-size: 12px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+  .card .value.green { color: #3fb950; }
+  .card .value.blue { color: #58a6ff; }
+  .card .value.orange { color: #d29922; }
+  .card .value.red { color: #f85149; }
+  .chart-container {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 20px;
+    position: relative;
+    height: 450px;
+  }
+  .loading {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #8b949e;
+  }
+  .loading.active { display: flex; }
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid #30363d;
+    border-top-color: #58a6ff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-msg {
+    background: #3d1114;
+    border: 1px solid #f85149;
+    color: #f85149;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .diff-positive { color: #3fb950; }
+  .diff-negative { color: #f85149; }
+
+  /* Favorites bar */
+  .fav-bar {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .fav-item {
+    flex-shrink: 0;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    min-width: 130px;
+    transition: border-color 0.2s;
+    position: relative;
+  }
+  .fav-item:hover { border-color: #58a6ff; }
+  .fav-item.active { border-color: #58a6ff; background: #1c2333; }
+  .fav-item .fav-sym { font-weight: 700; font-size: 14px; color: #58a6ff; }
+  .fav-item .fav-mp { font-size: 12px; color: #d29922; margin-top: 2px; }
+  .fav-item .fav-price { font-size: 11px; color: #8b949e; }
+  .fav-item .fav-diff { font-size: 11px; font-weight: 600; }
+  .fav-item .fav-exp { font-size: 10px; color: #6e7681; }
+  .fav-item .fav-loading { font-size: 11px; color: #6e7681; }
+  .fav-item .fav-remove {
+    position: absolute;
+    top: 2px;
+    right: 6px;
+    font-size: 14px;
+    color: #6e7681;
+    cursor: pointer;
+    line-height: 1;
+    display: none;
+  }
+  .fav-item:hover .fav-remove { display: block; }
+  .fav-item .fav-remove:hover { color: #f85149; }
+  .fav-add-btn {
+    flex-shrink: 0;
+    background: none;
+    border: 1px dashed #30363d;
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: #8b949e;
+    cursor: pointer;
+    font-size: 13px;
+    min-width: 40px;
+    text-align: center;
+  }
+  .fav-add-btn:hover { border-color: #58a6ff; color: #58a6ff; background: none; }
+</style>
+</head>
+<body>
+
+<div class="fav-bar" id="favBar"></div>
+
+<div class="header">
+  <h1>Option Max Pain</h1>
+  <div class="controls">
+    <input type="text" id="symbol" placeholder="Ticker, e.g. QQQ" value="QQQ">
+    <select id="expiration" disabled><option>-- Select expiration --</option></select>
+    <button id="loadBtn" onclick="loadExpirations()">Load</button>
+    <div class="loading" id="loadingIndicator"><div class="spinner"></div><span>Loading...</span></div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="error-msg" id="errorMsg"></div>
+  <div class="info-cards" id="infoCards" style="display:none">
+    <div class="card">
+      <div class="label">Ticker</div>
+      <div class="value blue" id="infoSymbol">-</div>
+    </div>
+    <div class="card">
+      <div class="label">Current Price</div>
+      <div class="value green" id="infoPrice">-</div>
+    </div>
+    <div class="card">
+      <div class="label">Max Pain</div>
+      <div class="value orange" id="infoMaxPain">-</div>
+    </div>
+    <div class="card">
+      <div class="label">Difference</div>
+      <div class="value" id="infoDiff">-</div>
+    </div>
+    <div class="card">
+      <div class="label">Expiration</div>
+      <div class="value blue" id="infoExp" style="font-size:20px">-</div>
+    </div>
+  </div>
+  <div class="chart-container">
+    <canvas id="painChart"></canvas>
+  </div>
+  <div style="margin-top:16px; padding:14px 18px; background:#161b22; border:1px solid #30363d; border-radius:8px; color:#8b949e; font-size:13px; line-height:1.7;">
+    <span style="color:#f0f6fc; font-weight:600;">Max Pain</span> = the strike price where option writers pay out the least (i.e. option buyers lose the most).<br>
+    <span style="color:#d29922;">Total Pain(P)</span> =
+    <span style="color:#58a6ff;">Call Pain</span> + <span style="color:#58a6ff;">Put Pain</span><br>
+    Call Pain = &Sigma; max(P - K, 0) &times; Call OI(K) &nbsp;&nbsp;|&nbsp;&nbsp;
+    Put Pain = &Sigma; max(K - P, 0) &times; Put OI(K)<br>
+    The strike with the <b>minimum</b> total pain is the max pain point.<br>
+    <span style="color:#6e7681; font-size:12px;">
+      P = hypothetical expiry price &nbsp;|&nbsp;
+      K = strike price of each option contract &nbsp;|&nbsp;
+      OI = Open Interest (number of outstanding contracts at that strike)
+    </span>
+  </div>
+</div>
+
+<script>
+let chart = null;
+const DEFAULT_FAVS = ['QQQ', 'SPY', 'NVDA', 'AAPL', 'TSLA'];
+
+// --- Favorites ---
+function getFavs() {
+  try { return JSON.parse(localStorage.getItem('maxpain_favs')) || DEFAULT_FAVS; }
+  catch { return DEFAULT_FAVS; }
+}
+function saveFavs(favs) { localStorage.setItem('maxpain_favs', JSON.stringify(favs)); }
+
+function addFav(sym) {
+  sym = sym.trim().toUpperCase();
+  if (!sym) return;
+  const favs = getFavs();
+  if (favs.includes(sym)) return;
+  favs.push(sym);
+  saveFavs(favs);
+  renderFavBar();
+  loadFavData(sym);
+}
+
+function removeFav(sym) {
+  const favs = getFavs().filter(f => f !== sym);
+  saveFavs(favs);
+  renderFavBar();
+}
+
+function renderFavBar() {
+  const bar = document.getElementById('favBar');
+  const favs = getFavs();
+  const currentSym = document.getElementById('symbol').value.trim().toUpperCase();
+  bar.innerHTML = '';
+  favs.forEach(sym => {
+    const el = document.createElement('div');
+    el.className = 'fav-item' + (sym === currentSym ? ' active' : '');
+    el.id = `fav-${sym}`;
+    el.innerHTML = `
+      <span class="fav-remove" onclick="event.stopPropagation(); removeFav('${sym}')">&times;</span>
+      <div class="fav-sym">${sym}</div>
+      <div class="fav-loading">loading...</div>
+    `;
+    el.onclick = () => {
+      document.getElementById('symbol').value = sym;
+      loadExpirations();
+      document.querySelectorAll('.fav-item').forEach(f => f.classList.remove('active'));
+      el.classList.add('active');
+    };
+    bar.appendChild(el);
+  });
+  // Add button
+  const addBtn = document.createElement('button');
+  addBtn.className = 'fav-add-btn';
+  addBtn.textContent = '+';
+  addBtn.title = 'Add current ticker to favorites';
+  addBtn.onclick = () => {
+    const sym = prompt('Enter ticker to add:');
+    if (sym) addFav(sym);
+  };
+  bar.appendChild(addBtn);
+}
+
+async function loadFavData(sym) {
+  const el = document.getElementById(`fav-${sym}`);
+  if (!el) return;
+  try {
+    const res = await fetch(`/api/quick?symbol=${encodeURIComponent(sym)}`);
+    const d = await res.json();
+    if (d.error) {
+      el.querySelector('.fav-loading').textContent = 'error';
+      return;
+    }
+    const sign = d.diff >= 0 ? '+' : '';
+    const diffClass = d.diff >= 0 ? 'diff-positive' : 'diff-negative';
+    el.querySelector('.fav-loading').outerHTML = `
+      <div class="fav-mp">MP $${d.max_pain.toFixed(2)}</div>
+      <div class="fav-price">$${d.price.toFixed(2)} <span class="fav-diff ${diffClass}">${sign}${d.diff_pct.toFixed(1)}%</span></div>
+      <div class="fav-exp">${d.expiration}</div>
+    `;
+  } catch {
+    el.querySelector('.fav-loading').textContent = 'error';
+  }
+}
+
+function loadAllFavs() {
+  renderFavBar();
+  getFavs().forEach(sym => loadFavData(sym));
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 6000);
+}
+
+function setLoading(on) {
+  document.getElementById('loadingIndicator').classList.toggle('active', on);
+  document.getElementById('loadBtn').disabled = on;
+}
+
+async function loadExpirations() {
+  const symbol = document.getElementById('symbol').value.trim();
+  if (!symbol) return;
+  setLoading(true);
+  try {
+    const res = await fetch(`/api/expirations?symbol=${encodeURIComponent(symbol)}`);
+    const data = await res.json();
+    if (data.error) { showError(data.error); return; }
+
+    const sel = document.getElementById('expiration');
+    sel.innerHTML = '';
+    data.expirations.forEach(exp => {
+      const opt = document.createElement('option');
+      opt.value = exp;
+      opt.textContent = exp;
+      sel.appendChild(opt);
+    });
+    sel.disabled = false;
+    sel.onchange = () => loadMaxPain(symbol, sel.value);
+    // Auto-load the first expiration
+    if (data.expirations.length > 0) {
+      loadMaxPain(symbol, data.expirations[0]);
+    }
+  } catch (e) {
+    showError('Failed to fetch data: ' + e.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function loadMaxPain(symbol, expiration) {
+  setLoading(true);
+  try {
+    const res = await fetch(`/api/maxpain?symbol=${encodeURIComponent(symbol)}&expiration=${encodeURIComponent(expiration)}`);
+    const data = await res.json();
+    if (data.error) { showError(data.error); return; }
+    renderResult(data);
+  } catch (e) {
+    showError('Failed to fetch max pain: ' + e.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderResult(data) {
+  document.getElementById('infoCards').style.display = 'grid';
+  document.getElementById('infoSymbol').textContent = data.symbol;
+  document.getElementById('infoPrice').textContent = data.price ? `$${data.price.toFixed(2)}` : 'N/A';
+  document.getElementById('infoMaxPain').textContent = `$${data.max_pain.toFixed(2)}`;
+  document.getElementById('infoExp').textContent = data.expiration;
+
+  if (data.price) {
+    const diff = data.price - data.max_pain;
+    const pct = (diff / data.max_pain * 100).toFixed(2);
+    const sign = diff >= 0 ? '+' : '';
+    const el = document.getElementById('infoDiff');
+    el.textContent = `${sign}$${diff.toFixed(2)} (${sign}${pct}%)`;
+    el.className = `value ${diff >= 0 ? 'diff-positive' : 'diff-negative'}`;
+  }
+
+  const mp = data.max_pain;
+  const filtered = data.strikes.map((s, i) => ({ strike: s, pain: data.pain[i] }));
+
+  // Compute min gap between strikes for tick step sizing
+  const gaps = [];
+  for (let i = 1; i < filtered.length; i++) {
+    gaps.push(filtered[i].strike - filtered[i - 1].strike);
+  }
+  const minGap = gaps.length ? Math.min(...gaps) : 2.5;
+
+  // Use {x, y} data points with linear x-axis for proportional spacing
+  const chartData = filtered.map(d => ({ x: d.strike, y: d.pain }));
+  const colors = filtered.map(d =>
+    Math.abs(d.strike - mp) < 0.01 ? '#d29922' : '#30363d'
+  );
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('painChart'), {
+    type: 'bar',
+    data: {
+      datasets: [{
+        label: 'Total Pain ($)',
+        data: chartData,
+        backgroundColor: colors,
+        borderColor: colors.map(c => c === '#d29922' ? '#d29922' : '#484f58'),
+        borderWidth: 1,
+        maxBarThickness: 6,
+        minBarLength: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: ctxs => `Strike: $${ctxs[0].parsed.x.toFixed(2)}`,
+            label: ctx => `Pain: $${ctx.parsed.y.toLocaleString()}`
+          }
+        },
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Strike Price', color: '#8b949e' },
+          ticks: {
+            color: '#8b949e',
+            stepSize: (() => {
+              const totalRange = filtered[filtered.length - 1].strike - filtered[0].strike;
+              if (totalRange > 500) return 50;
+              if (totalRange > 200) return 25;
+              if (totalRange > 100) return 20;
+              return 10;
+            })(),
+            callback: v => '$' + v,
+          },
+          grid: { color: '#21262d' },
+          offset: true,
+        },
+        y: {
+          title: { display: true, text: 'Total Pain ($)', color: '#8b949e' },
+          ticks: {
+            color: '#8b949e',
+            callback: v => v >= 1e9 ? (v/1e9).toFixed(1) + 'B' : v >= 1e6 ? (v/1e6).toFixed(1) + 'M' : v >= 1e3 ? (v/1e3).toFixed(0) + 'K' : v
+          },
+          grid: { color: '#21262d' },
+        }
+      }
+    },
+    plugins: [{
+      // Draw vertical lines for max pain and current price
+      afterDraw(chart) {
+        const ctx = chart.ctx;
+        const xScale = chart.scales.x;
+        const yScale = chart.scales.y;
+
+        // Max pain line
+        const mpX = xScale.getPixelForValue(data.max_pain);
+        ctx.save();
+        ctx.strokeStyle = '#d29922';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(mpX, yScale.top);
+        ctx.lineTo(mpX, yScale.bottom);
+        ctx.stroke();
+        ctx.fillStyle = '#d29922';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(`Max Pain: $${data.max_pain.toFixed(2)}`, mpX + 6, yScale.top + 16);
+        ctx.restore();
+
+        // Current price line
+        if (data.price) {
+          const priceX = xScale.getPixelForValue(data.price);
+          ctx.save();
+          ctx.strokeStyle = '#3fb950';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(priceX, yScale.top);
+          ctx.lineTo(priceX, yScale.bottom);
+          ctx.stroke();
+          ctx.fillStyle = '#3fb950';
+          ctx.font = 'bold 12px sans-serif';
+          // Place label on left side if price line is close to max pain line to avoid overlap
+          const labelText = `Price: $${data.price.toFixed(2)}`;
+          const textW = ctx.measureText(labelText).width;
+          const labelX = Math.abs(priceX - mpX) < 80 ? priceX - textW - 6 : priceX + 6;
+          ctx.fillText(labelText, labelX, yScale.top + 32);
+          ctx.restore();
+        }
+      }
+    }]
+  });
+}
+
+// Enter key triggers load
+document.getElementById('symbol').addEventListener('keydown', e => {
+  if (e.key === 'Enter') loadExpirations();
+});
+
+// Auto-load favorites bar and default ticker
+loadAllFavs();
+loadExpirations();
+</script>
+</body>
+</html>
