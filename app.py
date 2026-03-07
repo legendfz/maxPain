@@ -42,6 +42,7 @@ def fetch_cboe_options(symbol):
             "strike": p["strike"],
             "oi": o.get("open_interest") or 0,
             "volume": o.get("volume") or 0,
+            "gamma": o.get("gamma") or 0,
         })
 
     return current_price, dict(by_exp)
@@ -58,34 +59,57 @@ def _calc_pain(strikes, call_w, put_w):
     return pain, strikes[min_idx]
 
 
-def calc_max_pain(options_for_exp):
-    """Calculate OI-based and Volume-based max pain."""
+def calc_max_pain(options_for_exp, spot_price=None):
+    """Calculate OI-based max pain, Volume-based max pain, and GEX per strike."""
     call_oi = defaultdict(float)
     put_oi = defaultdict(float)
     call_vol = defaultdict(float)
     put_vol = defaultdict(float)
+    # GEX per strike: call gamma adds positive, put gamma adds negative
+    gex_per_strike = defaultdict(float)
+
     for o in options_for_exp:
+        s = o["strike"]
         if o["type"] == "C":
-            call_oi[o["strike"]] += o["oi"]
-            call_vol[o["strike"]] += o["volume"]
+            call_oi[s] += o["oi"]
+            call_vol[s] += o["volume"]
+            # Call GEX = gamma * OI * 100 (positive for calls)
+            gex_per_strike[s] += o["gamma"] * o["oi"] * 100
         else:
-            put_oi[o["strike"]] += o["oi"]
-            put_vol[o["strike"]] += o["volume"]
+            put_oi[s] += o["oi"]
+            put_vol[s] += o["volume"]
+            # Put GEX = gamma * OI * 100 * -1 (negative for puts)
+            gex_per_strike[s] -= o["gamma"] * o["oi"] * 100
 
-    strikes = sorted(set(call_oi.keys()) | set(put_oi.keys()) | set(call_vol.keys()) | set(put_vol.keys()))
+    all_strikes = sorted(
+        set(call_oi.keys()) | set(put_oi.keys())
+        | set(call_vol.keys()) | set(put_vol.keys())
+        | set(gex_per_strike.keys())
+    )
 
-    pain_oi, mp_oi = _calc_pain(strikes, call_oi, put_oi)
-    pain_vol, mp_vol = _calc_pain(strikes, call_vol, put_vol)
+    pain_oi, mp_oi = _calc_pain(all_strikes, call_oi, put_oi)
+    pain_vol, mp_vol = _calc_pain(all_strikes, call_vol, put_vol)
 
     total_vol = sum(call_vol.values()) + sum(put_vol.values())
 
+    # GEX values for each strike
+    gex = [gex_per_strike.get(s, 0) for s in all_strikes]
+    # GEX flip point: the strike where net GEX crosses from positive to negative
+    gex_flip = None
+    for i in range(len(all_strikes) - 1):
+        if gex[i] >= 0 and gex[i + 1] < 0:
+            gex_flip = all_strikes[i]
+            break
+
     return {
-        "strikes": strikes,
+        "strikes": all_strikes,
         "pain": pain_oi,
         "max_pain": mp_oi,
         "pain_vol": pain_vol,
         "max_pain_vol": mp_vol,
         "total_volume": total_vol,
+        "gex": gex,
+        "gex_flip": gex_flip,
     }
 
 

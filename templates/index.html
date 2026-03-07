@@ -203,6 +203,10 @@
       <div class="value" id="infoDiff">-</div>
     </div>
     <div class="card">
+      <div class="label">GEX Flip</div>
+      <div class="value" id="infoGexFlip" style="color:#e87d2f">-</div>
+    </div>
+    <div class="card">
       <div class="label">Expiration</div>
       <div class="value blue" id="infoExp" style="font-size:20px">-</div>
     </div>
@@ -210,23 +214,52 @@
   <div class="chart-container">
     <canvas id="painChart"></canvas>
   </div>
+  <div class="chart-container" style="margin-top:16px; height:300px;">
+    <canvas id="gexChart"></canvas>
+  </div>
   <div style="margin-top:16px; padding:14px 18px; background:#161b22; border:1px solid #30363d; border-radius:8px; color:#8b949e; font-size:13px; line-height:1.7;">
-    <span style="color:#f0f6fc; font-weight:600;">Max Pain</span> = the strike price where option writers pay out the least (i.e. option buyers lose the most).<br>
+    <span style="color:#f0f6fc; font-weight:600; font-size:14px;">Max Pain (OI)</span><br>
+    The strike price where option writers pay out the least (option buyers lose the most).<br>
     <span style="color:#d29922;">Total Pain(P)</span> =
     <span style="color:#58a6ff;">Call Pain</span> + <span style="color:#58a6ff;">Put Pain</span><br>
     Call Pain = &Sigma; max(P - K, 0) &times; Call OI(K) &nbsp;&nbsp;|&nbsp;&nbsp;
     Put Pain = &Sigma; max(K - P, 0) &times; Put OI(K)<br>
     The strike with the <b>minimum</b> total pain is the max pain point.<br>
+    Based on <b>yesterday's closing OI</b> data. Reflects accumulated positions over days/weeks.<br>
     <span style="color:#6e7681; font-size:12px;">
       P = hypothetical expiry price &nbsp;|&nbsp;
       K = strike price of each option contract &nbsp;|&nbsp;
       OI = Open Interest (number of outstanding contracts at that strike)
+    </span>
+
+    <hr style="border:none; border-top:1px solid #30363d; margin:12px 0;">
+
+    <span style="color:#a371f7; font-weight:600; font-size:14px;">Max Pain (Volume)</span><br>
+    Same formula as OI Max Pain, but replaces OI with <b>today's real-time trading volume</b> at each strike.<br>
+    Call Pain = &Sigma; max(P - K, 0) &times; Call <b>Volume</b>(K) &nbsp;&nbsp;|&nbsp;&nbsp;
+    Put Pain = &Sigma; max(K - P, 0) &times; Put <b>Volume</b>(K)<br>
+    Useful on <b>expiration day (0DTE)</b> to see where today's active traders are concentrated.<br>
+    <span style="color:#6e7681; font-size:12px;">
+      Limitation: Volume includes both opening and closing trades &mdash; cannot distinguish new positions from closed ones.
+    </span>
+
+    <hr style="border:none; border-top:1px solid #30363d; margin:12px 0;">
+
+    <span style="color:#e87d2f; font-weight:600; font-size:14px;">GEX (Gamma Exposure)</span><br>
+    Measures how much market makers need to hedge at each strike price.<br>
+    <span style="color:#e87d2f;">Net GEX(K)</span> = Call Gamma(K) &times; Call OI(K) &times; 100 &minus; Put Gamma(K) &times; Put OI(K) &times; 100<br>
+    <b>Positive GEX</b> (green bars): Market makers <b>sell when price rises, buy when price falls</b> &rarr; suppresses volatility, price tends to stay pinned.<br>
+    <b>Negative GEX</b> (red bars): Market makers <b>buy when price rises, sell when price falls</b> &rarr; amplifies moves, more volatile.<br>
+    <span style="color:#e87d2f; font-weight:600;">GEX Flip</span> = the strike where net GEX crosses from positive to negative. Above the flip, price is "sticky"; below it, moves accelerate.<br>
+    <span style="color:#6e7681; font-size:12px;">
+      Gamma values are from CBOE delayed data (~15 min delay). GEX uses current OI, so it shares the same daily-update limitation as OI Max Pain.
     </span>
   </div>
 </div>
 
 <script>
 let chart = null;
+let gexChartObj = null;
 const DEFAULT_FAVS = ['QQQ', 'SPY', 'NVDA', 'AAPL', 'TSLA'];
 
 // --- Favorites ---
@@ -381,9 +414,18 @@ function renderResult(data) {
   const mpVolEl = document.getElementById('infoMaxPainVol');
   if (data.total_volume > 0) {
     mpVolEl.textContent = `$${data.max_pain_vol.toFixed(2)}`;
+    mpVolEl.style.color = '#a371f7';
   } else {
     mpVolEl.textContent = 'N/A';
     mpVolEl.style.color = '#6e7681';
+  }
+
+  // GEX flip
+  const gexFlipEl = document.getElementById('infoGexFlip');
+  if (data.gex_flip != null) {
+    gexFlipEl.textContent = `$${data.gex_flip.toFixed(2)}`;
+  } else {
+    gexFlipEl.textContent = 'N/A';
   }
 
   if (data.price) {
@@ -532,6 +574,118 @@ function renderResult(data) {
         }
         if (data.price) {
           drawLine(data.price, '#3fb950', `Price: $${data.price.toFixed(2)}`, yScale.top + (hasVol ? 42 : 28));
+        }
+      }
+    }]
+  });
+
+  // --- GEX Chart ---
+  const gexData = data.gex || [];
+  const gexFiltered = data.strikes.map((s, i) => ({ strike: s, gex: gexData[i] || 0 }));
+  const gexColors = gexFiltered.map(d => d.gex >= 0 ? '#3fb950' : '#f85149');
+  const gexChartData = gexFiltered.map(d => ({ x: d.strike, y: d.gex }));
+
+  if (gexChartObj) gexChartObj.destroy();
+  gexChartObj = new Chart(document.getElementById('gexChart'), {
+    type: 'bar',
+    data: {
+      datasets: [{
+        label: 'Net GEX',
+        data: gexChartData,
+        backgroundColor: gexColors,
+        borderColor: gexColors,
+        borderWidth: 1,
+        maxBarThickness: 6,
+        minBarLength: 1,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: ctxs => `Strike: $${ctxs[0].parsed.x.toFixed(2)}`,
+            label: ctx => `GEX: ${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toLocaleString(undefined, {maximumFractionDigits:0})}`
+          }
+        },
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Strike Price', color: '#8b949e' },
+          ticks: {
+            color: '#8b949e',
+            stepSize: (() => {
+              const totalRange = gexFiltered[gexFiltered.length - 1].strike - gexFiltered[0].strike;
+              if (totalRange > 500) return 50;
+              if (totalRange > 200) return 25;
+              if (totalRange > 100) return 20;
+              return 10;
+            })(),
+            callback: v => '$' + v,
+          },
+          grid: { color: '#21262d' },
+          offset: true,
+        },
+        y: {
+          title: { display: true, text: 'Net GEX (Gamma Exposure)', color: '#e87d2f' },
+          ticks: {
+            color: '#8b949e',
+            callback: v => {
+              const a = Math.abs(v);
+              const s = v < 0 ? '-' : '';
+              if (a >= 1e6) return s + (a/1e6).toFixed(1) + 'M';
+              if (a >= 1e3) return s + (a/1e3).toFixed(0) + 'K';
+              return v;
+            }
+          },
+          grid: { color: '#21262d' },
+        }
+      }
+    },
+    plugins: [{
+      afterDraw(chart) {
+        const ctx = chart.ctx;
+        const xScale = chart.scales.x;
+        const yScale = chart.scales.y;
+
+        // Draw zero line
+        const zeroY = yScale.getPixelForValue(0);
+        ctx.save();
+        ctx.strokeStyle = '#484f58';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(xScale.left, zeroY);
+        ctx.lineTo(xScale.right, zeroY);
+        ctx.stroke();
+        ctx.restore();
+
+        function drawLine(xVal, color, label, labelY) {
+          const x = xScale.getPixelForValue(xVal);
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x, yScale.top);
+          ctx.lineTo(x, yScale.bottom);
+          ctx.stroke();
+          ctx.fillStyle = color;
+          ctx.font = 'bold 11px sans-serif';
+          const textW = ctx.measureText(label).width;
+          const chartRight = xScale.right;
+          const labelX = (x + textW + 8 > chartRight) ? x - textW - 6 : x + 6;
+          ctx.fillText(label, labelX, labelY);
+          ctx.restore();
+        }
+
+        if (data.gex_flip != null) {
+          drawLine(data.gex_flip, '#e87d2f', `GEX Flip: $${data.gex_flip.toFixed(2)}`, yScale.top + 14);
+        }
+        if (data.price) {
+          drawLine(data.price, '#3fb950', `Price: $${data.price.toFixed(2)}`, yScale.top + 28);
         }
       }
     }]
