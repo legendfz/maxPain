@@ -108,6 +108,10 @@ def calc_max_pain(options_for_exp, spot_price=None):
         "pain_vol": pain_vol,
         "max_pain_vol": mp_vol,
         "total_volume": total_vol,
+        "call_vol": [call_vol.get(s, 0) for s in all_strikes],
+        "put_vol": [put_vol.get(s, 0) for s in all_strikes],
+        "call_oi": [call_oi.get(s, 0) for s in all_strikes],
+        "put_oi": [put_oi.get(s, 0) for s in all_strikes],
         "gex": gex,
         "gex_flip": gex_flip,
     }

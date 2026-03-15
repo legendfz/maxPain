@@ -214,6 +214,9 @@
   <div class="chart-container">
     <canvas id="painChart"></canvas>
   </div>
+  <div class="chart-container" style="margin-top:16px; height:350px;">
+    <canvas id="volChart"></canvas>
+  </div>
   <div class="chart-container" style="margin-top:16px; height:300px;">
     <canvas id="gexChart"></canvas>
   </div>
@@ -245,6 +248,52 @@
 
     <hr style="border:none; border-top:1px solid #30363d; margin:12px 0;">
 
+    <span style="font-weight:600; font-size:14px; color:#f0f6fc;">Volume Distribution Chart (Call / Put)</span><br>
+    The middle chart shows <b>per-strike trading volume</b> (bars) and <b>open interest</b> (dashed lines) for calls and puts separately.<br>
+    <span style="color:#3fb950;">Green bars (up)</span> = Call volume at that strike &nbsp;&nbsp;|&nbsp;&nbsp;
+    <span style="color:#f85149;">Red bars (down)</span> = Put volume at that strike<br>
+    <span style="color:#3fb950;">Green dashed line</span> = Call OI &nbsp;&nbsp;|&nbsp;&nbsp;
+    <span style="color:#f85149;">Red dashed line</span> = Put OI<br>
+    <b>How to read:</b> Spikes in volume show where traders are most active <i>today</i>. Compare with OI lines to see if today's activity aligns with existing positions or diverges.<br>
+    <span style="color:#6e7681; font-size:12px;">
+      Volume is real-time (~15 min delay from CBOE). OI is from yesterday's close (updated daily by OCC).
+    </span>
+
+    <hr style="border:none; border-top:1px solid #30363d; margin:12px 0;">
+
+    <span style="font-weight:600; font-size:14px; color:#58a6ff;">How to Combine OI Max Pain &amp; Volume Max Pain</span><br>
+    <table style="margin:8px 0; border-collapse:collapse; width:100%; font-size:13px;">
+      <tr style="border-bottom:1px solid #30363d;">
+        <td style="padding:6px 10px; color:#f0f6fc; font-weight:600;">Scenario</td>
+        <td style="padding:6px 10px; color:#f0f6fc; font-weight:600;">Signal</td>
+      </tr>
+      <tr style="border-bottom:1px solid #21262d;">
+        <td style="padding:6px 10px;">OI MP &asymp; Volume MP (same strike or very close)</td>
+        <td style="padding:6px 10px; color:#3fb950;"><b>Strong magnet.</b> Today's trading reinforces existing positions. High confidence the price is attracted to this area by expiration.</td>
+      </tr>
+      <tr style="border-bottom:1px solid #21262d;">
+        <td style="padding:6px 10px;">Volume MP shifts away from OI MP</td>
+        <td style="padding:6px 10px; color:#d29922;"><b>Repositioning in progress.</b> New money is flowing to different strikes. On 0DTE, Volume MP may be more relevant than OI MP since the new activity drives near-term hedging.</td>
+      </tr>
+      <tr style="border-bottom:1px solid #21262d;">
+        <td style="padding:6px 10px;">Price is between OI MP and Volume MP</td>
+        <td style="padding:6px 10px;"><b>Tug-of-war.</b> Existing positions pull one way, today's flow pulls another. Watch which side has higher total notional value.</td>
+      </tr>
+      <tr style="border-bottom:1px solid #21262d;">
+        <td style="padding:6px 10px;">Volume is very low (no meaningful Volume MP)</td>
+        <td style="padding:6px 10px; color:#8b949e;"><b>OI MP dominates.</b> Without significant new trading, yesterday's OI-based max pain is the primary reference.</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 10px;">0DTE / Expiration day, Volume is high</td>
+        <td style="padding:6px 10px; color:#a371f7;"><b>Volume MP takes the lead.</b> On expiration day, new 0DTE positions drive most of the market maker hedging. OI MP still matters for non-0DTE expirations on the same date.</td>
+      </tr>
+    </table>
+    <span style="color:#6e7681; font-size:12px;">
+      Rule of thumb: The further from expiration, the more OI MP matters. On expiration day, Volume MP becomes the primary signal. Always cross-reference with GEX &mdash; if GEX is positive near max pain, the price is more likely to stay pinned there.
+    </span>
+
+    <hr style="border:none; border-top:1px solid #30363d; margin:12px 0;">
+
     <span style="color:#e87d2f; font-weight:600; font-size:14px;">GEX (Gamma Exposure)</span><br>
     Measures how much market makers need to hedge at each strike price.<br>
     <span style="color:#e87d2f;">Net GEX(K)</span> = Call Gamma(K) &times; Call OI(K) &times; 100 &minus; Put Gamma(K) &times; Put OI(K) &times; 100<br>
@@ -259,6 +308,7 @@
 
 <script>
 let chart = null;
+let volChartObj = null;
 let gexChartObj = null;
 const DEFAULT_FAVS = ['QQQ', 'SPY', 'NVDA', 'AAPL', 'TSLA'];
 
@@ -562,6 +612,182 @@ function renderResult(data) {
           ctx.font = 'bold 11px sans-serif';
           const textW = ctx.measureText(label).width;
           // Keep label within chart area
+          const chartRight = xScale.right;
+          const labelX = (x + textW + 8 > chartRight) ? x - textW - 6 : x + 6;
+          ctx.fillText(label, labelX, labelY);
+          ctx.restore();
+        }
+
+        drawLine(data.max_pain, '#d29922', `OI MP: $${data.max_pain.toFixed(2)}`, yScale.top + 14);
+        if (hasVol) {
+          drawLine(data.max_pain_vol, '#a371f7', `Vol MP: $${data.max_pain_vol.toFixed(2)}`, yScale.top + 28);
+        }
+        if (data.price) {
+          drawLine(data.price, '#3fb950', `Price: $${data.price.toFixed(2)}`, yScale.top + (hasVol ? 42 : 28));
+        }
+      }
+    }]
+  });
+
+  // --- Volume Distribution Chart ---
+  const callVol = data.call_vol || [];
+  const putVol = data.put_vol || [];
+  const callOI = data.call_oi || [];
+  const putOI = data.put_oi || [];
+  const volStrikes = data.strikes.map((s, i) => ({
+    strike: s, cv: callVol[i] || 0, pv: putVol[i] || 0,
+    coi: callOI[i] || 0, poi: putOI[i] || 0
+  }));
+
+  if (volChartObj) volChartObj.destroy();
+  volChartObj = new Chart(document.getElementById('volChart'), {
+    type: 'bar',
+    data: {
+      datasets: [
+        {
+          label: 'Call Volume',
+          data: volStrikes.map(d => ({ x: d.strike, y: d.cv })),
+          backgroundColor: 'rgba(63,185,80,0.7)',
+          borderColor: '#3fb950',
+          borderWidth: 1,
+          maxBarThickness: 6,
+          minBarLength: 1,
+          yAxisID: 'y',
+          stack: 'vol',
+        },
+        {
+          label: 'Put Volume',
+          data: volStrikes.map(d => ({ x: d.strike, y: -d.pv })),
+          backgroundColor: 'rgba(248,81,73,0.7)',
+          borderColor: '#f85149',
+          borderWidth: 1,
+          maxBarThickness: 6,
+          minBarLength: 1,
+          yAxisID: 'y',
+          stack: 'vol',
+        },
+        {
+          label: 'Call OI',
+          data: volStrikes.map(d => ({ x: d.strike, y: d.coi })),
+          type: 'line',
+          borderColor: '#3fb950',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+          pointRadius: 0,
+          tension: 0.3,
+          yAxisID: 'y2',
+        },
+        {
+          label: 'Put OI',
+          data: volStrikes.map(d => ({ x: d.strike, y: d.poi })),
+          type: 'line',
+          borderColor: '#f85149',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+          pointRadius: 0,
+          tension: 0.3,
+          yAxisID: 'y2',
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: '#8b949e', usePointStyle: true, font: { size: 11 } },
+        },
+        tooltip: {
+          callbacks: {
+            title: ctxs => `Strike: $${ctxs[0].parsed.x.toFixed(2)}`,
+            label: ctx => {
+              const v = Math.abs(ctx.parsed.y);
+              return `${ctx.dataset.label}: ${v.toLocaleString()}`;
+            }
+          }
+        },
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Strike Price', color: '#8b949e' },
+          ticks: {
+            color: '#8b949e',
+            stepSize: (() => {
+              const totalRange = volStrikes[volStrikes.length - 1].strike - volStrikes[0].strike;
+              if (totalRange > 500) return 50;
+              if (totalRange > 200) return 25;
+              if (totalRange > 100) return 20;
+              return 10;
+            })(),
+            callback: v => '$' + v,
+          },
+          grid: { color: '#21262d' },
+          offset: true,
+        },
+        y: {
+          position: 'left',
+          title: { display: true, text: 'Volume (Call+ / Put-)', color: '#8b949e' },
+          ticks: {
+            color: '#8b949e',
+            callback: v => {
+              const a = Math.abs(v);
+              const s = v < 0 ? '-' : '';
+              if (a >= 1e6) return s + (a/1e6).toFixed(1) + 'M';
+              if (a >= 1e3) return s + (a/1e3).toFixed(0) + 'K';
+              return v;
+            }
+          },
+          grid: { color: '#21262d' },
+          stacked: true,
+        },
+        y2: {
+          position: 'right',
+          title: { display: true, text: 'Open Interest', color: '#6e7681' },
+          ticks: {
+            color: '#6e7681',
+            callback: v => {
+              if (v >= 1e6) return (v/1e6).toFixed(1) + 'M';
+              if (v >= 1e3) return (v/1e3).toFixed(0) + 'K';
+              return v;
+            }
+          },
+          grid: { drawOnChartArea: false },
+        }
+      }
+    },
+    plugins: [{
+      afterDraw(chart) {
+        const ctx = chart.ctx;
+        const xScale = chart.scales.x;
+        const yScale = chart.scales.y;
+
+        // Zero line
+        const zeroY = yScale.getPixelForValue(0);
+        ctx.save();
+        ctx.strokeStyle = '#484f58';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(xScale.left, zeroY);
+        ctx.lineTo(xScale.right, zeroY);
+        ctx.stroke();
+        ctx.restore();
+
+        function drawLine(xVal, color, label, labelY) {
+          const x = xScale.getPixelForValue(xVal);
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x, yScale.top);
+          ctx.lineTo(x, yScale.bottom);
+          ctx.stroke();
+          ctx.fillStyle = color;
+          ctx.font = 'bold 11px sans-serif';
+          const textW = ctx.measureText(label).width;
           const chartRight = xScale.right;
           const labelX = (x + textW + 8 > chartRight) ? x - textW - 6 : x + 6;
           ctx.fillText(label, labelX, labelY);
