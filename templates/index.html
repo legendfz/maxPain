@@ -221,87 +221,102 @@
     <canvas id="gexChart"></canvas>
   </div>
   <div style="margin-top:16px; padding:14px 18px; background:#161b22; border:1px solid #30363d; border-radius:8px; color:#8b949e; font-size:13px; line-height:1.7;">
-    <span style="color:#f0f6fc; font-weight:600; font-size:14px;">Max Pain (OI)</span><br>
+    <span style="color:#f0f6fc; font-weight:600; font-size:14px;">Max Pain (OI) / 最大痛点（未平仓量）</span><br>
     The strike price where option writers pay out the least (option buyers lose the most).<br>
+    <span style="color:#6e7681;">期权卖方赔付最少（期权买方亏损最多）的行权价。</span><br>
     <span style="color:#d29922;">Total Pain(P)</span> =
     <span style="color:#58a6ff;">Call Pain</span> + <span style="color:#58a6ff;">Put Pain</span><br>
     Call Pain = &Sigma; max(P - K, 0) &times; Call OI(K) &nbsp;&nbsp;|&nbsp;&nbsp;
     Put Pain = &Sigma; max(K - P, 0) &times; Put OI(K)<br>
     The strike with the <b>minimum</b> total pain is the max pain point.<br>
+    <span style="color:#6e7681;">总痛点值最小的行权价就是 Max Pain。</span><br>
     Based on <b>yesterday's closing OI</b> data. Reflects accumulated positions over days/weeks.<br>
+    <span style="color:#6e7681;">基于<b>昨日收盘后的未平仓量</b>，反映数天/数周累积的持仓。</span><br>
     <span style="color:#6e7681; font-size:12px;">
-      P = hypothetical expiry price &nbsp;|&nbsp;
-      K = strike price of each option contract &nbsp;|&nbsp;
-      OI = Open Interest (number of outstanding contracts at that strike)
+      P = hypothetical expiry price 假设到期价 &nbsp;|&nbsp;
+      K = strike price 行权价 &nbsp;|&nbsp;
+      OI = Open Interest 未平仓合约数
     </span>
 
     <hr style="border:none; border-top:1px solid #30363d; margin:12px 0;">
 
-    <span style="color:#a371f7; font-weight:600; font-size:14px;">Max Pain (Volume)</span><br>
+    <span style="color:#a371f7; font-weight:600; font-size:14px;">Max Pain (Volume) / 最大痛点（成交量）</span><br>
     Same formula as OI Max Pain, but replaces OI with <b>today's real-time trading volume</b> at each strike.<br>
+    <span style="color:#6e7681;">公式与 OI Max Pain 相同，但用<b>当日实时成交量</b>替代未平仓量。</span><br>
     Call Pain = &Sigma; max(P - K, 0) &times; Call <b>Volume</b>(K) &nbsp;&nbsp;|&nbsp;&nbsp;
     Put Pain = &Sigma; max(K - P, 0) &times; Put <b>Volume</b>(K)<br>
     Useful on <b>expiration day (0DTE)</b> to see where today's active traders are concentrated.<br>
+    <span style="color:#6e7681;">在<b>到期日（0DTE）</b>特别有用，可以看到当天活跃交易者集中在哪些行权价。</span><br>
     <span style="color:#6e7681; font-size:12px;">
-      Limitation: Volume includes both opening and closing trades &mdash; cannot distinguish new positions from closed ones.
+      Limitation: Volume includes both opening and closing trades &mdash; cannot distinguish new positions from closed ones.<br>
+      局限：成交量包含开仓和平仓，无法区分是新建仓位还是关闭仓位。
     </span>
 
     <hr style="border:none; border-top:1px solid #30363d; margin:12px 0;">
 
-    <span style="font-weight:600; font-size:14px; color:#f0f6fc;">Volume Distribution Chart (Call / Put)</span><br>
+    <span style="font-weight:600; font-size:14px; color:#f0f6fc;">Volume Distribution Chart / 成交量分布图</span><br>
     The middle chart shows <b>per-strike trading volume</b> (bars) and <b>open interest</b> (dashed lines) for calls and puts separately.<br>
-    <span style="color:#3fb950;">Green bars (up)</span> = Call volume at that strike &nbsp;&nbsp;|&nbsp;&nbsp;
-    <span style="color:#f85149;">Red bars (down)</span> = Put volume at that strike<br>
-    <span style="color:#3fb950;">Green dashed line</span> = Call OI &nbsp;&nbsp;|&nbsp;&nbsp;
-    <span style="color:#f85149;">Red dashed line</span> = Put OI<br>
+    <span style="color:#6e7681;">中间图表分别显示每个行权价的<b>成交量</b>（柱状）和<b>未平仓量</b>（虚线）。</span><br>
+    <span style="color:#3fb950;">Green bars (up) 绿色柱（向上）</span> = Call volume 看涨期权成交量 &nbsp;&nbsp;|&nbsp;&nbsp;
+    <span style="color:#f85149;">Red bars (down) 红色柱（向下）</span> = Put volume 看跌期权成交量<br>
+    <span style="color:#3fb950;">Green dashed line 绿色虚线</span> = Call OI 看涨未平仓量 &nbsp;&nbsp;|&nbsp;&nbsp;
+    <span style="color:#f85149;">Red dashed line 红色虚线</span> = Put OI 看跌未平仓量<br>
     <b>How to read:</b> Spikes in volume show where traders are most active <i>today</i>. Compare with OI lines to see if today's activity aligns with existing positions or diverges.<br>
+    <span style="color:#6e7681;"><b>怎么看：</b>成交量的峰值显示今天交易者最活跃的行权价。与 OI 虚线对比，判断今日交易是在加强还是偏离已有持仓。</span><br>
     <span style="color:#6e7681; font-size:12px;">
-      Volume is real-time (~15 min delay from CBOE). OI is from yesterday's close (updated daily by OCC).
+      Volume is real-time (~15 min delay from CBOE). OI is from yesterday's close (updated daily by OCC).<br>
+      成交量接近实时（CBOE 延迟约 15 分钟）。OI 为昨日收盘数据（OCC 每日更新）。
     </span>
 
     <hr style="border:none; border-top:1px solid #30363d; margin:12px 0;">
 
-    <span style="font-weight:600; font-size:14px; color:#58a6ff;">How to Combine OI Max Pain &amp; Volume Max Pain</span><br>
+    <span style="font-weight:600; font-size:14px; color:#58a6ff;">How to Combine OI MP &amp; Volume MP / 如何结合使用</span><br>
     <table style="margin:8px 0; border-collapse:collapse; width:100%; font-size:13px;">
       <tr style="border-bottom:1px solid #30363d;">
-        <td style="padding:6px 10px; color:#f0f6fc; font-weight:600;">Scenario</td>
-        <td style="padding:6px 10px; color:#f0f6fc; font-weight:600;">Signal</td>
+        <td style="padding:6px 10px; color:#f0f6fc; font-weight:600;">Scenario 场景</td>
+        <td style="padding:6px 10px; color:#f0f6fc; font-weight:600;">Signal 信号</td>
       </tr>
       <tr style="border-bottom:1px solid #21262d;">
-        <td style="padding:6px 10px;">OI MP &asymp; Volume MP (same strike or very close)</td>
-        <td style="padding:6px 10px; color:#3fb950;"><b>Strong magnet.</b> Today's trading reinforces existing positions. High confidence the price is attracted to this area by expiration.</td>
+        <td style="padding:6px 10px;">OI MP &asymp; Volume MP<br><span style="color:#6e7681;">两者接近或相同</span></td>
+        <td style="padding:6px 10px; color:#3fb950;"><b>Strong magnet. 强磁铁效应。</b><br>Today's trading reinforces existing positions. High confidence price is attracted here.<br><span style="color:#6e7681;">当日交易在加强已有持仓，价格大概率被吸引到该区域。</span></td>
       </tr>
       <tr style="border-bottom:1px solid #21262d;">
-        <td style="padding:6px 10px;">Volume MP shifts away from OI MP</td>
-        <td style="padding:6px 10px; color:#d29922;"><b>Repositioning in progress.</b> New money is flowing to different strikes. On 0DTE, Volume MP may be more relevant than OI MP since the new activity drives near-term hedging.</td>
+        <td style="padding:6px 10px;">Volume MP shifts away from OI MP<br><span style="color:#6e7681;">Volume MP 偏离 OI MP</span></td>
+        <td style="padding:6px 10px; color:#d29922;"><b>Repositioning. 资金重新布局。</b><br>New money is flowing to different strikes. On 0DTE, Volume MP may be more relevant.<br><span style="color:#6e7681;">新资金涌入不同行权价。0DTE 时 Volume MP 可能更有参考价值。</span></td>
       </tr>
       <tr style="border-bottom:1px solid #21262d;">
-        <td style="padding:6px 10px;">Price is between OI MP and Volume MP</td>
-        <td style="padding:6px 10px;"><b>Tug-of-war.</b> Existing positions pull one way, today's flow pulls another. Watch which side has higher total notional value.</td>
+        <td style="padding:6px 10px;">Price is between OI MP and Volume MP<br><span style="color:#6e7681;">价格在两者之间</span></td>
+        <td style="padding:6px 10px;"><b>Tug-of-war. 拉锯战。</b><br>Existing positions pull one way, today's flow pulls another.<br><span style="color:#6e7681;">已有持仓和当日资金流向在两个方向拉扯，看哪边名义价值更大。</span></td>
       </tr>
       <tr style="border-bottom:1px solid #21262d;">
-        <td style="padding:6px 10px;">Volume is very low (no meaningful Volume MP)</td>
-        <td style="padding:6px 10px; color:#8b949e;"><b>OI MP dominates.</b> Without significant new trading, yesterday's OI-based max pain is the primary reference.</td>
+        <td style="padding:6px 10px;">Volume is very low<br><span style="color:#6e7681;">成交量很低</span></td>
+        <td style="padding:6px 10px; color:#8b949e;"><b>OI MP dominates. OI MP 主导。</b><br>Without significant new trading, OI-based max pain is the primary reference.<br><span style="color:#6e7681;">没有显著新交易时，OI Max Pain 是主要参考。</span></td>
       </tr>
       <tr>
-        <td style="padding:6px 10px;">0DTE / Expiration day, Volume is high</td>
-        <td style="padding:6px 10px; color:#a371f7;"><b>Volume MP takes the lead.</b> On expiration day, new 0DTE positions drive most of the market maker hedging. OI MP still matters for non-0DTE expirations on the same date.</td>
+        <td style="padding:6px 10px;">0DTE, Volume is high<br><span style="color:#6e7681;">到期日，成交量大</span></td>
+        <td style="padding:6px 10px; color:#a371f7;"><b>Volume MP takes the lead. Volume MP 主导。</b><br>On expiration day, 0DTE positions drive most hedging.<br><span style="color:#6e7681;">到期日当天，0DTE 新仓位驱动大部分做市商对冲行为。</span></td>
       </tr>
     </table>
     <span style="color:#6e7681; font-size:12px;">
-      Rule of thumb: The further from expiration, the more OI MP matters. On expiration day, Volume MP becomes the primary signal. Always cross-reference with GEX &mdash; if GEX is positive near max pain, the price is more likely to stay pinned there.
+      Rule of thumb: The further from expiration, the more OI MP matters. On expiration day, Volume MP becomes the primary signal. Cross-reference with GEX &mdash; if GEX is positive near max pain, price is more likely to stay pinned.<br>
+      经验法则：离到期日越远，OI MP 越重要。到期日当天，Volume MP 成为主要信号。结合 GEX 看 &mdash; 如果 Max Pain 附近 GEX 为正，价格更可能被钉住。
     </span>
 
     <hr style="border:none; border-top:1px solid #30363d; margin:12px 0;">
 
-    <span style="color:#e87d2f; font-weight:600; font-size:14px;">GEX (Gamma Exposure)</span><br>
+    <span style="color:#e87d2f; font-weight:600; font-size:14px;">GEX (Gamma Exposure) / 伽马敞口</span><br>
     Measures how much market makers need to hedge at each strike price.<br>
+    <span style="color:#6e7681;">衡量做市商在每个行权价需要多少对冲量。</span><br>
     <span style="color:#e87d2f;">Net GEX(K)</span> = Call Gamma(K) &times; Call OI(K) &times; 100 &minus; Put Gamma(K) &times; Put OI(K) &times; 100<br>
     <b>Positive GEX</b> (green bars): Market makers <b>sell when price rises, buy when price falls</b> &rarr; suppresses volatility, price tends to stay pinned.<br>
+    <span style="color:#6e7681;"><b>正 GEX</b>（绿色柱）：做市商<b>涨时卖、跌时买</b> &rarr; 压制波动，价格倾向于被钉住。</span><br>
     <b>Negative GEX</b> (red bars): Market makers <b>buy when price rises, sell when price falls</b> &rarr; amplifies moves, more volatile.<br>
+    <span style="color:#6e7681;"><b>负 GEX</b>（红色柱）：做市商<b>涨时买、跌时卖</b> &rarr; 放大波动，走势加速。</span><br>
     <span style="color:#e87d2f; font-weight:600;">GEX Flip</span> = the strike where net GEX crosses from positive to negative. Above the flip, price is "sticky"; below it, moves accelerate.<br>
+    <span style="color:#6e7681;"><b>GEX 翻转点</b> = 净 GEX 从正转负的行权价。翻转点之上价格"粘滞"，之下走势加速。</span><br>
     <span style="color:#6e7681; font-size:12px;">
-      Gamma values are from CBOE delayed data (~15 min delay). GEX uses current OI, so it shares the same daily-update limitation as OI Max Pain.
+      Gamma values are from CBOE delayed data (~15 min delay). GEX uses current OI, so it shares the same daily-update limitation as OI Max Pain.<br>
+      Gamma 值来自 CBOE 延迟数据（约 15 分钟延迟）。GEX 使用当前 OI，与 OI Max Pain 共享每日更新的限制。
     </span>
   </div>
 </div>
