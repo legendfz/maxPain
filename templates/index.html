@@ -494,11 +494,12 @@ function renderResult(data) {
     strike: s, pain: data.pain[i], painVol: data.pain_vol ? data.pain_vol[i] : 0
   }));
 
-  // Compute min gap between strikes for tick step sizing
-  const gaps = [];
-  for (let i = 1; i < filtered.length; i++) {
-    gaps.push(filtered[i].strike - filtered[i - 1].strike);
-  }
+  // Focus range: center on midpoint of price & max pain, ±10% of price, rounded to nice numbers
+  const focusCenter = data.price ? (data.price + mp) / 2 : mp;
+  const focusRange = (data.price || mp) * 0.10;
+  const focusStep = focusRange * 2 > 100 ? 10 : focusRange * 2 > 40 ? 5 : focusRange * 2 > 15 ? 2 : 1;
+  const xMin = Math.floor((focusCenter - focusRange) / focusStep) * focusStep;
+  const xMax = Math.ceil((focusCenter + focusRange) / focusStep) * focusStep;
 
   // Use {x, y} data points with linear x-axis for proportional spacing
   const chartDataOI = filtered.map(d => ({ x: d.strike, y: d.pain }));
@@ -512,7 +513,7 @@ function renderResult(data) {
     backgroundColor: colorsOI,
     borderColor: colorsOI.map(c => c === '#d29922' ? '#d29922' : '#484f58'),
     borderWidth: 1,
-    maxBarThickness: 6,
+    maxBarThickness: 14,
     minBarLength: 2,
     yAxisID: 'y',
   }];
@@ -541,6 +542,7 @@ function renderResult(data) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
       plugins: {
         legend: {
           display: hasVol,
@@ -556,16 +558,12 @@ function renderResult(data) {
       scales: {
         x: {
           type: 'linear',
+          min: xMin,
+          max: xMax,
           title: { display: true, text: 'Strike Price', color: '#8b949e' },
           ticks: {
             color: '#8b949e',
-            stepSize: (() => {
-              const totalRange = filtered[filtered.length - 1].strike - filtered[0].strike;
-              if (totalRange > 500) return 50;
-              if (totalRange > 200) return 25;
-              if (totalRange > 100) return 20;
-              return 10;
-            })(),
+            stepSize: focusStep,
             callback: v => '$' + v,
           },
           grid: { color: '#21262d' },
@@ -650,7 +648,7 @@ function renderResult(data) {
           backgroundColor: 'rgba(63,185,80,0.7)',
           borderColor: '#3fb950',
           borderWidth: 1,
-          maxBarThickness: 6,
+          maxBarThickness: 14,
           minBarLength: 1,
           yAxisID: 'y',
           stack: 'vol',
@@ -661,7 +659,7 @@ function renderResult(data) {
           backgroundColor: 'rgba(248,81,73,0.7)',
           borderColor: '#f85149',
           borderWidth: 1,
-          maxBarThickness: 6,
+          maxBarThickness: 14,
           minBarLength: 1,
           yAxisID: 'y',
           stack: 'vol',
@@ -695,6 +693,7 @@ function renderResult(data) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
       plugins: {
         legend: {
           labels: { color: '#8b949e', usePointStyle: true, font: { size: 11 } },
@@ -712,16 +711,12 @@ function renderResult(data) {
       scales: {
         x: {
           type: 'linear',
+          min: xMin,
+          max: xMax,
           title: { display: true, text: 'Strike Price', color: '#8b949e' },
           ticks: {
             color: '#8b949e',
-            stepSize: (() => {
-              const totalRange = volStrikes[volStrikes.length - 1].strike - volStrikes[0].strike;
-              if (totalRange > 500) return 50;
-              if (totalRange > 200) return 25;
-              if (totalRange > 100) return 20;
-              return 10;
-            })(),
+            stepSize: focusStep,
             callback: v => '$' + v,
           },
           grid: { color: '#21262d' },
@@ -821,13 +816,14 @@ function renderResult(data) {
         backgroundColor: gexColors,
         borderColor: gexColors,
         borderWidth: 1,
-        maxBarThickness: 6,
+        maxBarThickness: 14,
         minBarLength: 1,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -840,16 +836,12 @@ function renderResult(data) {
       scales: {
         x: {
           type: 'linear',
+          min: xMin,
+          max: xMax,
           title: { display: true, text: 'Strike Price', color: '#8b949e' },
           ticks: {
             color: '#8b949e',
-            stepSize: (() => {
-              const totalRange = gexFiltered[gexFiltered.length - 1].strike - gexFiltered[0].strike;
-              if (totalRange > 500) return 50;
-              if (totalRange > 200) return 25;
-              if (totalRange > 100) return 20;
-              return 10;
-            })(),
+            stepSize: focusStep,
             callback: v => '$' + v,
           },
           grid: { color: '#21262d' },
